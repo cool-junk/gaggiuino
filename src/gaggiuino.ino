@@ -155,10 +155,13 @@ static void sensorsReadWeight(void) {
     currentState.scalesPresent = scalesIsPresent();
     if (currentState.scalesPresent) {
       if (currentState.tarePending) {
-        scalesTare();
-        weightMeasurements.clear();
-        weightMeasurements.add(scalesGetWeight());
-        currentState.tarePending = false;
+        // Only clear the pending flag if the tare really happened, otherwise retry on the next cycle
+        // (a skipped tare leaves the old offset in place and reads as a false high weight).
+        if (scalesTare()) {
+          weightMeasurements.clear();
+          weightMeasurements.add(scalesGetWeight());
+          currentState.tarePending = false;
+        }
       }
       else {
         weightMeasurements.add(scalesGetWeight());
@@ -747,6 +750,15 @@ static void brewDetect(void) {
     if (!paramsReset) {
       lcdWakeUp();
       brewParamsReset();
+      // Tare BEFORE the pump starts: tare(4) averages several samples and was previously taken
+      // after the pump/solenoid were already running, so switching noise skewed the zero point.
+      if (scalesIsPresent() && scalesTare()) {
+        weightMeasurements.clear();
+        weightMeasurements.add(scalesGetWeight());
+        currentState.weight = weightMeasurements.latest().value;
+        currentState.tarePending = false;
+        scalesTimer = millis();
+      }
       paramsReset = true;
       brewActive = true;
     }
