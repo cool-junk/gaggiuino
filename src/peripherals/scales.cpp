@@ -52,16 +52,24 @@ void scalesInit(float scalesF1, float scalesF2) {
   }
 }
 
-void scalesTare(void) {
+// Returns true only when a tare was actually performed (or handed to remote scales).
+// Previously a failed/timed-out tare was silent, and the caller assumed success.
+bool scalesTare(void) {
   if (hwScalesPresent) {
     auto& loadCells = LoadCellSingleton::getInstance();
-    if (loadCells.wait_ready_timeout(150, 10)) {
-      loadCells.tare(4);
+    for (uint8_t attempt = 0; attempt < 3; attempt++) {
+      if (loadCells.wait_ready_timeout(150, 10)) {
+        loadCells.tare(4);
+        return true;
+      }
     }
+    return false;
   }
   else if (remoteScalesIsPresent()) {
     remoteScalesTare();
+    return true;
   }
+  return false;
 }
 
 Measurement scalesGetWeight(void) {
