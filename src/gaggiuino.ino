@@ -84,6 +84,15 @@ void setup(void) {
   thermocoupleInit();
   LOG_INFO("Thermocouple Init");
 
+  // The display remembers the last profile it showed in its own storage, while the firmware only remembers
+  // the profile that was last saved. If they differ the screen ends up with two profiles highlighted, so
+  // follow the display, exactly as a tap on a profile button would. Keep the saved one if the display has no answer.
+  const int displayProfile = lcdGetStartupProfile();
+  if (displayProfile >= 0 && displayProfile < MAX_PROFILES) {
+    runningCfg.activeProfile = displayProfile;
+    LOG_INFO("Active profile taken from display: %d", displayProfile + 1);
+  }
+
   lcdUploadCfg(runningCfg);
   LOG_INFO("LCD cfg uploaded");
 
