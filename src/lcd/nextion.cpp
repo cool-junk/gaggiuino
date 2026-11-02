@@ -474,6 +474,13 @@ uint8_t lcdGetSelectedProfile(void) {
   return pId - 1; /* 1-offset in nextion */
 }
 
+// Profile the display remembers from its own storage (0-based), or -1 if it has not loaded it yet.
+// Unlike lcdGetSelectedProfile() this is quiet and never forces profile 0 when the display does not answer.
+int lcdGetStartupProfile(void) {
+  int32_t pId = (int32_t) myNex.readNumber("pId");
+  return (pId >= 1 && pId <= 5) ? (int)(pId - 1) : -1; /* 1-offset in nextion */
+}
+
 bool lcdGetPreinfusionFlowState(void) {
   return myNex.readNumber("piFlowState");
 }

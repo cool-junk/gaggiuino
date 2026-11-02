@@ -41,6 +41,7 @@ void lcdFetchCurrentProfile(eepromValues_t & settings);
 void lcdFetchLed(eepromValues_t & settings);
 void lcdFetchPage(eepromValues_t &settings, NextionPage page, int targetProfile);
 uint8_t lcdGetSelectedProfile(void);
+int lcdGetStartupProfile(void);
 bool lcdGetPreinfusionFlowState(void);
 bool lcdGetProfileFlowState(void);
 bool lcdGetTransitionFlowState(void);
