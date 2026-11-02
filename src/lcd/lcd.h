@@ -41,6 +41,7 @@ void lcdFetchCurrentProfile(eepromValues_t & settings);
 void lcdFetchLed(eepromValues_t & settings);
 void lcdFetchPage(eepromValues_t &settings, NextionPage page, int targetProfile);
 uint8_t lcdGetSelectedProfile(void);
+int lcdGetStartupProfile(void);
 bool lcdGetPreinfusionFlowState(void);
 bool lcdGetProfileFlowState(void);
 bool lcdGetTransitionFlowState(void);
@@ -48,6 +49,9 @@ int lcdGetHomeScreenScalesEnabled(void);
 int lcdGetSelectedOperationalMode(void);
 int lcdGetManualFlowVol(void);
 int lcdGetDescaleCycle(void);
+int lcdGetDisplaySetpoint(void);
+int lcdGetStandbyEnabled(void);
+int lcdGetStandbyIdleTemp(void);
 
 void lcdSetDescaleCycle(int cycle);
 void lcdSetPressure(float val);

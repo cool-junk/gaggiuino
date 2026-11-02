@@ -27,6 +27,13 @@ SystemState systemState;
 LED led;
 TOF tof;
 
+// Standby handling. The display runs its own Standby Timer and, when it expires, drops its boiler setpoint
+// (sT.setPoint.val) to the Idle Temp from the More menu. The old handshake that was meant to tell the firmware
+// (a fake page-change message) is easy to miss, so the firmware also watches the display setpoint directly.
+bool standbyActive = false;
+int standbyIdleTemp = 0;
+static void standbyPoll(void);
+
 void setup(void) {
   LOG_INIT();
   LOG_INFO("Gaggiuino (fw: %s) booting", AUTO_VERSION);
@@ -77,6 +84,15 @@ void setup(void) {
   thermocoupleInit();
   LOG_INFO("Thermocouple Init");
 
+  // The display remembers the last profile it showed in its own storage, while the firmware only remembers
+  // the profile that was last saved. If they differ the screen ends up with two profiles highlighted, so
+  // follow the display, exactly as a tap on a profile button would. Keep the saved one if the display has no answer.
+  const int displayProfile = lcdGetStartupProfile();
+  if (displayProfile >= 0 && displayProfile < MAX_PROFILES) {
+    runningCfg.activeProfile = displayProfile;
+    LOG_INFO("Active profile taken from display: %d", displayProfile + 1);
+  }
+
   lcdUploadCfg(runningCfg);
   LOG_INFO("LCD cfg uploaded");
 
@@ -111,6 +127,7 @@ void loop(void) {
   if (lcdCurrentPageId != lcdLastCurrentPageId) pageValuesRefresh();
   lcdListen();
   sensorsRead();
+  standbyPoll();
   brewDetect();
   modeSelect();
   lcdRefresh();
@@ -155,10 +172,13 @@ static void sensorsReadWeight(void) {
     currentState.scalesPresent = scalesIsPresent();
     if (currentState.scalesPresent) {
       if (currentState.tarePending) {
-        scalesTare();
-        weightMeasurements.clear();
-        weightMeasurements.add(scalesGetWeight());
-        currentState.tarePending = false;
+        // Only clear the pending flag if the tare really happened, otherwise retry on the next cycle
+        // (a skipped tare leaves the old offset in place and reads as a false high weight).
+        if (scalesTare()) {
+          weightMeasurements.clear();
+          weightMeasurements.add(scalesGetWeight());
+          currentState.tarePending = false;
+        }
       }
       else {
         weightMeasurements.add(scalesGetWeight());
@@ -733,6 +753,35 @@ static void manualFlowControl(void) {
 }
 
 //#############################################################################################
+//###################################____STANDBY TIMER____#####################################
+//#############################################################################################
+
+static void standbyPoll(void) {
+  static uint32_t nextPoll = 0;
+  if (!systemState.startupInitFinished || brewActive || millis() < nextPoll) return;
+  nextPoll = millis() + 1000u;
+
+  const int displaySetpoint = lcdGetDisplaySetpoint();
+  if (displaySetpoint < 0) return; // display busy or not answering, try again next second
+
+  if (!standbyActive) {
+    // Normal case: the display setpoint matches the active profile, nothing to do.
+    if (displaySetpoint == (int) ACTIVE_PROFILE(runningCfg).setpoint) return;
+    if (lcdGetStandbyEnabled() != 1) return;
+    const int idleTemp = lcdGetStandbyIdleTemp();
+    if (idleTemp >= 0 && displaySetpoint == idleTemp) {
+      standbyIdleTemp = idleTemp;
+      standbyActive = true;
+      LOG_INFO("Standby: holding idle temp %d", idleTemp);
+    }
+  } else if (displaySetpoint != standbyIdleTemp) {
+    // The display restored the saved temperature (screen was touched), so heat back up.
+    standbyActive = false;
+    LOG_INFO("Standby: ended");
+  }
+}
+
+//#############################################################################################
 //###################################____BREW DETECT____#######################################
 //#############################################################################################
 
@@ -747,6 +796,15 @@ static void brewDetect(void) {
     if (!paramsReset) {
       lcdWakeUp();
       brewParamsReset();
+      // Tare BEFORE the pump starts: tare(4) averages several samples and was previously taken
+      // after the pump/solenoid were already running, so switching noise skewed the zero point.
+      if (scalesIsPresent() && scalesTare()) {
+        weightMeasurements.clear();
+        weightMeasurements.add(scalesGetWeight());
+        currentState.weight = weightMeasurements.latest().value;
+        currentState.tarePending = false;
+        scalesTimer = millis();
+      }
       paramsReset = true;
       brewActive = true;
     }

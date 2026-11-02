@@ -3,6 +3,8 @@
 #include "../lcd/lcd.h"
 
 extern unsigned long steamTime;
+extern bool standbyActive;
+extern int standbyIdleTemp;
 // inline static float TEMP_DELTA(float d) { return (d*DELTA_RANGE); }
 inline static float TEMP_DELTA(float d, const SensorState &currentState) {
   return (
@@ -16,6 +18,10 @@ inline static float TEMP_DELTA(float d, const SensorState &currentState) {
 void justDoCoffee(const eepromValues_t &runningCfg, const SensorState &currentState, const bool brewActive) {
   lcdTargetState((int)HEATING::MODE_brew); // setting the target mode to "brew temp"
   float brewTempSetPoint = ACTIVE_PROFILE(runningCfg).setpoint + runningCfg.offsetTemp;
+  // Display standby timer expired: hold the Idle Temp instead (a shot still uses the normal setpoint).
+  if (standbyActive && !brewActive) {
+    brewTempSetPoint = standbyIdleTemp + runningCfg.offsetTemp;
+  }
   float sensorTemperature = currentState.temperature + runningCfg.offsetTemp;
 
   if (brewActive) { //if brewState == true

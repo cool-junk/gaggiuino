@@ -9,7 +9,7 @@
 #include "measurements.h"
 
 void scalesInit(float scalesF1, float scalesF2);
-void scalesTare(void);
+bool scalesTare(void);
 Measurement scalesGetWeight(void);
 bool scalesIsPresent(void);
 float scalesDripTrayWeight();
