@@ -27,6 +27,13 @@ SystemState systemState;
 LED led;
 TOF tof;
 
+// Standby handling. The display runs its own Standby Timer and, when it expires, drops its boiler setpoint
+// (sT.setPoint.val) to the Idle Temp from the More menu. The old handshake that was meant to tell the firmware
+// (a fake page-change message) is easy to miss, so the firmware also watches the display setpoint directly.
+bool standbyActive = false;
+int standbyIdleTemp = 0;
+static void standbyPoll(void);
+
 void setup(void) {
   LOG_INIT();
   LOG_INFO("Gaggiuino (fw: %s) booting", AUTO_VERSION);
@@ -111,6 +118,7 @@ void loop(void) {
   if (lcdCurrentPageId != lcdLastCurrentPageId) pageValuesRefresh();
   lcdListen();
   sensorsRead();
+  standbyPoll();
   brewDetect();
   modeSelect();
   lcdRefresh();
@@ -733,6 +741,35 @@ static void manualFlowControl(void) {
     closeValve();
   }
   justDoCoffee(runningCfg, currentState, brewActive);
+}
+
+//#############################################################################################
+//###################################____STANDBY TIMER____#####################################
+//#############################################################################################
+
+static void standbyPoll(void) {
+  static uint32_t nextPoll = 0;
+  if (!systemState.startupInitFinished || brewActive || millis() < nextPoll) return;
+  nextPoll = millis() + 1000u;
+
+  const int displaySetpoint = lcdGetDisplaySetpoint();
+  if (displaySetpoint < 0) return; // display busy or not answering, try again next second
+
+  if (!standbyActive) {
+    // Normal case: the display setpoint matches the active profile, nothing to do.
+    if (displaySetpoint == (int) ACTIVE_PROFILE(runningCfg).setpoint) return;
+    if (lcdGetStandbyEnabled() != 1) return;
+    const int idleTemp = lcdGetStandbyIdleTemp();
+    if (idleTemp >= 0 && displaySetpoint == idleTemp) {
+      standbyIdleTemp = idleTemp;
+      standbyActive = true;
+      LOG_INFO("Standby: holding idle temp %d", idleTemp);
+    }
+  } else if (displaySetpoint != standbyIdleTemp) {
+    // The display restored the saved temperature (screen was touched), so heat back up.
+    standbyActive = false;
+    LOG_INFO("Standby: ended");
+  }
 }
 
 //#############################################################################################
