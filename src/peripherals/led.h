@@ -28,6 +28,10 @@ class LED {
     };
   private:
     uint32_t timer;
+    // Last colour actually sent to the LED driver, used to avoid flooding the I2C bus.
+    uint32_t lastWriteMs = 0;
+    uint8_t lastR = 0, lastG = 0, lastB = 0;
+    bool haveLastColor = false;
 };
 
 LED::LED() : timer(millis()) {};
@@ -40,7 +44,17 @@ void LED::begin() {
 
 void LED::setColor(uint8_t red, uint8_t green, uint8_t blue) {
   #if defined LED_NCP5623 || defined LED_PCA9632
+  // doLed() calls this on every pass of the main loop. Re-sending an unchanged colour
+  // hammers the I2C bus shared with the pressure sensor and distance sensor for no benefit.
+  // Only write when the colour changes, plus a slow refresh in case the driver chip glitched.
+  const uint32_t now = millis();
+  if (haveLastColor && red == lastR && green == lastG && blue == lastB && (now - lastWriteMs) < 1000u) {
+    return;
+  }
   tankLED.setColor(red, green, blue);
+  lastR = red; lastG = green; lastB = blue;
+  haveLastColor = true;
+  lastWriteMs = now;
   #endif
 }
 
