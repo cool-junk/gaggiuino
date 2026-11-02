@@ -498,6 +498,28 @@ int lcdGetSelectedOperationalMode(void) {
   return  myNex.readNumber("modeSelect");
 }
 
+// Reads a plain number from the display and returns -1 if the answer is not plausible
+// (the display returns 777777 when it does not answer in time).
+static int lcdReadSane(const char* name) {
+  int32_t value = (int32_t) myNex.readNumber(name);
+  return (value >= 0 && value <= 1000) ? (int) value : -1;
+}
+
+// Current boiler setpoint held by the display. The display's standby timer overwrites it with the idle temp.
+int lcdGetDisplaySetpoint(void) {
+  return lcdReadSane("sT.setPoint.val");
+}
+
+// Display-side standby timer: 1 when enabled in the More menu.
+int lcdGetStandbyEnabled(void) {
+  return lcdReadSane("WDOnOff");
+}
+
+// Display-side standby timer: the Idle Temp value from the More menu.
+int lcdGetStandbyIdleTemp(void) {
+  return lcdReadSane("WDIdleTemp");
+}
+
 int lcdGetDescaleCycle(void) {
   return myNex.readNumber("j0.val");
 }

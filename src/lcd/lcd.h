@@ -48,6 +48,9 @@ int lcdGetHomeScreenScalesEnabled(void);
 int lcdGetSelectedOperationalMode(void);
 int lcdGetManualFlowVol(void);
 int lcdGetDescaleCycle(void);
+int lcdGetDisplaySetpoint(void);
+int lcdGetStandbyEnabled(void);
+int lcdGetStandbyIdleTemp(void);
 
 void lcdSetDescaleCycle(int cycle);
 void lcdSetPressure(float val);
